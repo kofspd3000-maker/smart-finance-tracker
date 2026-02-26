@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Smart Finance Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #0d1117;
+      color: #e5e7eb;
+    }
+
+    header {
+      padding: 1rem 2rem;
+      background: #111827;
+      border-bottom: 1px solid #1f2937;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 {
+      font-size: 1.3rem;
+      color: #22c55e;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: #111827;
+      padding: 1rem;
+      border-radius: 0.75rem;
+      border: 1px solid #1f2937;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+    }
+
+    .card h2 {
+      color: #22c55e;
+      margin-bottom: 0.5rem;
+      font-size: 1rem;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    input, select {
+      flex: 1;
+      padding: 0.5rem;
+      border-radius: 0.5rem;
+      border: 1px solid #1f2937;
+      background: #0f172a;
+      color: #e5e7eb;
+    }
+
+    button {
+      padding: 0.6rem 1rem;
+      background: #22c55e;
+      border: none;
+      border-radius: 0.5rem;
+      color: #0d1117;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1rem;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Smart Finance Tracker</h1>
+  </header>
+
+  <div class="container">
+
+    <!-- Summary Cards -->
+    <div class="cards">
+      <div class="card">
+        <h2>Total Balance</h2>
+        <p id="balance">GHS 0</p>
+      </div>
+
+      <div class="card">
+        <h2>Total Income</h2>
+        <p id="income">GHS 0</p>
+      </div>
+
+      <div class="card">
+        <h2>Total Expenses</h2>
+        <p id="expenses">GHS 0</p>
+      </div>
+    </div>
+
+    <!-- Add Transaction -->
+    <div class="card">
+      <h2>Add Transaction</h2>
+
+      <div class="input-group">
+        <input id="amount" type="number" placeholder="Amount (GHS)" />
+        <select id="type">
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <input id="category" type="text" placeholder="Category (e.g., Food, Transport)" />
+        <input id="description" type="text" placeholder="Description" />
+      </div>
+
+      <button onclick="addTransaction()">Add</button>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts">
+      <div class="card">
+        <h2>Spending by Category</h2>
+        <canvas id="categoryChart"></canvas>
+      </div>
+
+      <div class="card">
+        <h2>Monthly Spending Trend</h2>
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let transactions = JSON.parse(localStorage.getItem("transactions")) || [];
+
+    function save() {
+      localStorage.setItem("transactions", JSON.stringify(transactions));
+    }
+
+    function addTransaction() {
+      const amount = parseFloat(document.getElementById("amount").value);
+      const type = document.getElementById("type").value;
+      const category = document.getElementById("category").value;
+      const description = document.getElementById("description").value;
+
+      if (!amount || !category) return alert("Enter amount and category");
+
+      transactions.push({
+        amount,
+        type,
+        category,
+        description,
+        date: new Date().toISOString()
+      });
+
+      save();
+      updateUI();
+    }
+
+    function updateUI() {
+      let income = 0, expenses = 0;
+
+      transactions.forEach(t => {
+        if (t.type === "income") income += t.amount;
+        else expenses += t.amount;
+      });
+
+      document.getElementById("income").textContent = `GHS ${income}`;
+      document.getElementById("expenses").textContent = `GHS ${expenses}`;
+      document.getElementById("balance").textContent = `GHS ${income - expenses}`;
+
+      updateCharts();
+    }
+
+    let categoryChart, trendChart;
+
+    function updateCharts() {
+      const categoryTotals = {};
+      const monthlyTotals = Array(12).fill(0);
+
+      transactions.forEach(t => {
+        if (t.type === "expense") {
+          categoryTotals[t.category] = (categoryTotals[t.category] || 0) + t.amount;
+
+          const month = new Date(t.date).getMonth();
+          monthlyTotals[month] += t.amount;
+        }
+      });
+
+      const ctx1 = document.getElementById("categoryChart").getContext("2d");
+      const ctx2 = document.getElementById("trendChart").getContext("2d");
+
+      if (categoryChart) categoryChart.destroy();
+      if (trendChart) trendChart.destroy();
+
+      categoryChart = new Chart(ctx1, {
+        type: "pie",
+        data: {
+          labels: Object.keys(categoryTotals),
+          datasets: [{
+            data: Object.values(categoryTotals),
+            backgroundColor: ["#22c55e", "#16a34a", "#4ade80", "#86efac"]
+          }]
+        }
+      });
+
+      trendChart = new Chart(ctx2, {
+        type: "line",
+        data: {
+          labels: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+          datasets: [{
+            label: "Expenses (GHS)",
+            data: monthlyTotals,
+            borderColor: "#22c55e",
+            backgroundColor: "rgba(34,197,94,0.2)",
+            tension: 0.3
+          }]
+        }
+      });
+    }
+
+    updateUI();
+  </script>
+</body>
+</html>
